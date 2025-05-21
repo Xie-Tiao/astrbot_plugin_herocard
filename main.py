@@ -1,24 +1,61 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+import asyncio
+import datetime
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
-        super().__init__(context)
+import aiocqhttp
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
-    
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+import xt_hero
 
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+
+async def main_xt() -> None:
+    host = '0.0.0.0'
+    port = 6199
+    bot = aiocqhttp.CQHttp()
+
+    def get_next_run_time(now):
+        # 计算下一个运行时间点（即明天早上8点）
+        next_run_time = datetime.datetime(now.year, now.month, now.day, 8, 0) + datetime.timedelta(days=1)
+        return next_run_time
+
+    async def schedule_daily_task():
+        while True:
+            now = datetime.datetime.now()
+            next_run_time = get_next_run_time(now)
+            wait_seconds = (next_run_time - now).total_seconds()
+            # wait_seconds = 10
+
+            print(f"下一次执行时间为: {next_run_time}, 等待 {wait_seconds} 秒")
+            await asyncio.sleep(wait_seconds)
+
+            # 执行任务
+            news = xt_hero.get_news()
+            try:
+                await bot.send_group_msg(group_id=713970542, message=f'[CQ:image,file=base64://{news}]')
+            except aiocqhttp.exceptions.ApiNotAvailable:
+                pass
+
+    @bot.on_message('group')
+    async def message_group(event: aiocqhttp.Event):
+        text = next((item['data']['text'] for item in event.message if item['type'] == 'text'), '')
+        if xt_hero.contains_kana(text):
+            lines = text.splitlines()
+            for line in lines:
+                cleaned_text = xt_hero.clean_text(line)
+                title = xt_hero.hero(cleaned_text)
+                await bot.send(event, title)
+        keywords = ['新闻', 'news']
+        if 'at,qq=2655223227' in event.raw_message and any(keyword in text for keyword in keywords):
+            # 执行任务
+            news = xt_hero.get_news()
+            try:
+                await bot.send_group_msg(group_id=713970542, message=f'[CQ:image,file=base64://{news}]')
+            except aiocqhttp.exceptions.ApiNotAvailable:
+                pass
+
+    # 每天早上8点执行get_news函数
+    asyncio.create_task(schedule_daily_task())
+
+    await bot.run_task(host, port)
+
+
+if __name__ == '__main__':
+    asyncio.run(main_xt())
