@@ -42,8 +42,8 @@ class XtHeroPlugin(Star):
             # 执行任务
             try:
                 news = xt_hero.get_news()
-                await self.context.api.send_group_msg(group_id=713970542,
-                                                      message=f'[CQ:image,file=base64://{news}]')
+                # 使用yield返回消息结果而不是直接发送
+                yield event.plain_result(f'[CQ:image,file=base64://{news}]')
                 logger.info("定时新闻发送成功")
             except Exception as e:
                 logger.error(f"定时新闻发送失败: {e}")
@@ -53,13 +53,10 @@ class XtHeroPlugin(Star):
         """处理用户主动请求新闻的命令"""
         try:
             news = xt_hero.get_news()
-            # 使用框架API发送图片消息
-            await self.context.api.send_group_msg(
-                group_id=event.group_id,
-                message=f'[CQ:image,file=base64://{news}]'
-            )
+            # 使用yield返回消息结果
+            yield event.plain_result(f'[CQ:image,file=base64://{news}]')
         except Exception as e:
-            await self.context.api.send(event, "获取新闻失败，请重试")
+            yield event.plain_result("获取新闻失败，请重试")
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def handle_message(self, event: AstrMessageEvent):
@@ -67,20 +64,21 @@ class XtHeroPlugin(Star):
         text = event.message_str
 
         # 检测消息中是否包含日文假名
-        if event.is_at_me() and xt_hero.contains_kana(text):
+        if event.is_admin() and xt_hero.contains_kana(text):
             lines = text.splitlines()
             for line in lines:
                 cleaned_text = xt_hero.clean_text(line)
                 title = xt_hero.hero(cleaned_text)
                 if title:
-                    await self.context.api.send(event, title)
+                    # 使用yield返回消息结果
+                    yield event.plain_result(title)
 
         # 检测是否@机器人并包含关键词
-        if event.is_at_me() and any(keyword in text for keyword in ['新闻', 'news']):
+        if event.is_admin() and any(keyword in text for keyword in ['新闻', 'news']):
             try:
                 news = xt_hero.get_news()
-                await self.context.api.send_group_msg(group_id=event.group_id,
-                                                      message=f'[CQ:image,file=base64://{news}]')
+                # 使用yield返回消息结果
+                yield event.plain_result(f'[CQ:image,file=base64://{news}]')
             except Exception as e:
                 logger.error(f"响应@新闻请求失败: {e}")
-                await self.context.api.send(event, "获取新闻失败，请稍后再试")
+                yield event.plain_result("获取新闻失败，请稍后再试")
