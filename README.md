@@ -12,11 +12,9 @@
 
 **安装方法**
 
-使用以下命令之一快速安装：
+使用以下命令快速安装：
 
 ```
-nb plugin install astrbot_plugin_herocard
-
 pip install --upgrade astrbot_plugin_herocard
 ```
 
